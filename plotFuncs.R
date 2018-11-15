@@ -6,6 +6,7 @@
 #FOR 3.5.1: install_load('scales', 'ggplot2', 'mgcv', 'stringi', 'plyr', 'reshape2', 'gridExtra')
 source("/home/ebutler/adroseHelperScripts/R/afgrHelpFunc.R")
 install_load('ggplot2', 'mgcv', 'stringi', 'plyr', 'reshape2', 'gridExtra')
+#Oct 15, 2018: stringi failed, need 1.1.7
 
 
 ## Declare a function to create mean-centered age variables (((THIS WORKS)))
@@ -55,7 +56,8 @@ regressMultDVs <- function(dataframe, DVColumnNums, IVColumnNums) {
 
 
 ## Declare a function to create lobular volume variables
-# ROI_ListofLists should have sub-elements with that match column names in the dataframe
+# ROI_ListofLists should have sub-elements that match column names in the dataframe
+# ROI_ListofLists should contain raw values (NO z-scores)
 # The -1 should only be present if the last sublist in ROI_ListofLists is not being used
 lobeVolumes <- function(dataframe, ROI_ListofLists, lastList=FALSE) {
 	if (lastList == TRUE) {
@@ -436,7 +438,7 @@ createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE,
 }
 
 
-## Declare a function to plot ROIs, split by gender
+## Declare a function to plot ROIs, split by some factor
 # "dataframe" should be the output of createSummaryDF, but filtered so that only one factor with multiple levels remains
 # "factor" should be the factor for which you want different colored lines (factor from above), data type = character
 # "plotTitle" should describe the levels that you kept of the other factors from dataframe and how the z-scores were calculated (e.g., what was regressed out)
@@ -490,14 +492,17 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			scale_linetype_manual(name = factor, values = linetype_vec) +
 			theme_bw() +
 			theme(legend.position="top") +
-			theme(text=element_text(size=12), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), 
-			axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
-			axis.title.y = element_text(face="bold", size=25),
-			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12)) +
 			#facet_grid(cols = vars(Lobe), scales="free", space="free_x") +
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
-				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") 
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=25),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=25),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
 			}
 	} else {
 		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
@@ -509,13 +514,16 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			geom_hline(aes(yintercept=0), linetype="longdash", colour="black", size=0.5) +
 			theme_bw() +
 			theme(legend.position="top") +
-			theme(text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), 
-			axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
-			axis.title.y = element_text(face="bold", size=28),
-			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15)) +
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
-				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") 
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
 			}
 	}
 	return(plotToReturn)
@@ -569,26 +577,394 @@ subjectCompare <- function(subjectID, timePoint, columnSubjID, columnTimePoint, 
 }
 
 
+## Declare a function that filters for subjects with all timepoints
+# subjColumn should be a string
+# timeColumn should be a string
+filterAllTimepoints <- function(dataframe, subjColumn, timeColumn, numTimepoints) {
+	numrows <- nrow(dataframe)
+	timepointsPerSubject <- list()
+	# iterate through all of the rows of dataframe, creating a vector of two-element vectors (subj, numTimepoints = 0)
+	names_vec <- c()
+	for (i in 1:numrows) {
+		subj = as.character(dataframe[i, subjColumn])
+		if (!(subj %in% names_vec)) {
+			names_vec <- c(names_vec, subj)
+		}
+	}
+	timepointsPerSubject <- as.list(matrix(0,nrow=length(names_vec)))
+	names(timepointsPerSubject) <- names_vec
+	for (i in 1:numrows) {
+		subj = as.character(dataframe[i, subjColumn])
+		num_element <- which(names(timepointsPerSubject) == subj)
+		timepointsPerSubject[[num_element]] = timepointsPerSubject[[num_element]] + 1
+	}
+	# find the subjects that have all of the timepoints
+	allTimepoints <- c()
+	for (j in 1:length(timepointsPerSubject)) {
+		if (timepointsPerSubject[[j]] ==  numTimepoints) {
+			allTimepoints <- c(allTimepoints, names_vec[[j]])
+		}
+	}
+	copies_allTimepoints <- c()
+	for (k in 1:numTimepoints) {
+		copies_allTimepoints = c(copies_allTimepoints, allTimepoints)
+	}
+	dataframe <- subset(dataframe, dataframe[ , subjColumn] %in% allTimepoints)
+	return(dataframe)
+}
+
+## Declare a function that filters for subjects with specific timepoints
+# subjColumn should be a string
+# timeColumn should be a string
+# timePointVec should be a vector of strings that are the timepoints you would like to select for
+#filterForTimepoints <- function(dataframe, subjColumn, timeColumn, timePointVec) {
+#	numrows <- nrow(dataframe)
+#	timepointsPerSubject <- list()
+#	# iterate through all of the rows of dataframe, creating a vector of subject names
+#	names_vec <- c()
+#	for (i in 1:numrows) {
+#		subj = as.character(dataframe[i, subjColumn])
+#		if (!(subj %in% names_vec)) {
+#			names_vec <- c(names_vec, subj)
+#		}
+#	}
+#	timepointDF <- data.frame(matrix(NA, nrow=length(names_vec), ncol=1+length(timePointVec)))
+#	colnames(timepointDF) <- c("subject", timePointVec)
+#	timepointDF$subject <- names_vec
+#	# iterate over all of the rows of dataframe check off if that data exists
+#	for (i in 1:numrows) {
+#		subj <- as.character(dataframe[i, subjColumn])
+#		subj
+#		time <- as.character(dataframe[i, timeColumn])
+#		time
+#		timepointDF[timepointDF$subject == subj, time] <- 1
+#	}
+#	timepointDF <- timepointDF[,c("subject", timePointVec)]
+#	# create a vector to filter by
+#	filter_vec <- c()
+#	for (i in 1:nrow(timepointDF)) {
+#		row <- as.vector(timepointDF[i, ])
+#		names(row) <- NULL
+#		row <- as.vector(row)
+#		if (!(NA %in% row)) {
+#			subj <- timepointDF[i, "subject"]
+#			filter_vec <- c(filter_vec, subj)
+#		}
+#	}
+#	dataframe <- dataframe[ , which(dataframe[ , subjColumn]         )] #ERB: Pick up here
+#	return(dataframe)
+#}
 
 
+## Declare a function to "plot mean and standard error in Boxplot in R"
+# input to fun.data in stat_summary
+MinMeanSEMMax <- function(x) {
+  v <- c(min(x), mean(x) - sd(x)/sqrt(length(x)), mean(x), mean(x) + sd(x)/sqrt(length(x)), max(x))
+  names(v) <- c("ymin", "lower", "middle", "upper", "ymax")
+  v
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## Declare a function to create a column of scanning sites
+scanningSite_NASAAntartica <- function(dataframe, wintercol="winterover", subject_1col="subject_1", Timecol="Time") {
+	dataframe$scanner <- NA
+	num_rows <- nrow(dataframe)
+	for (row in 1:num_rows) {
+		if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_001") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_001") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_002") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_003") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"		
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_005") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_005") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_005") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_006") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_007") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_007") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_007") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_008") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_008") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_008") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_009") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_009") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_009") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_010") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_011") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_011") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_011") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_012") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_012") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_013") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_013") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_013") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_101") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_101") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_102") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_102") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_102") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_103") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_103") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_103") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_104") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_104") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_105") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_105") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_105") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_106") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_106") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_107") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_107") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_107") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_108") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_108") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_108") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_110") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_110") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_111") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_111") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_111") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_112") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_112") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_112") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_113") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_113") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "DLR_113") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_001") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_001") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_001") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_002") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_002") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_002") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_003") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_003") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_003") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_004") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_004") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_004") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_005") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_005") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_005") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_006") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_006") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_006") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_007") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_007") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_007") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_008") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_008") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_008") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_009") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_009") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_009") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_010") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_010") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_010") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_011") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_011") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_011") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_012") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_012") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_012") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_013") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_013") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "concordia_013") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_101") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_101") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_102") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_102") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_103") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_103") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_104") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_104") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_104") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_105") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_105") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_105") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_106") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_107") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_107") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_108") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_108") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_108") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_109") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_109") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_110") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_110") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_111") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_111") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_111") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_112") && (dataframe[row, Timecol] == "t0")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_112") && (dataframe[row, Timecol] == "t12")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "wo_2016") && (dataframe[row, subject_1col] == "concordia_112") && (dataframe[row, Timecol] == "t18")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BJ") && (dataframe[row, Timecol] == "t1")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BJ") && (dataframe[row, Timecol] == "t4")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BM") && (dataframe[row, Timecol] == "t1")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BM") && (dataframe[row, Timecol] == "t2")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BM") && (dataframe[row, Timecol] == "t3")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "BM") && (dataframe[row, Timecol] == "t4")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "EA") && (dataframe[row, Timecol] == "t1")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "EA") && (dataframe[row, Timecol] == "t2")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "EA") && (dataframe[row, Timecol] == "t3")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "EA") && (dataframe[row, Timecol] == "t4")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "GR") && (dataframe[row, Timecol] == "t1")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "GR") && (dataframe[row, Timecol] == "t2")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "GR") && (dataframe[row, Timecol] == "t3")) {
+			dataframe[row, "scanner"] <- "HOB"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "GR") && (dataframe[row, Timecol] == "t4")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "PK") && (dataframe[row, Timecol] == "t1")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "PK") && (dataframe[row, Timecol] == "t2")) {
+			dataframe[row, "scanner"] <- "CHR"
+		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "PK") && (dataframe[row, Timecol] == "t4")) {
+			dataframe[row, "scanner"] <- "CGN"
+		} 
+	}
+	dataframe$scanner <- as.factor(dataframe$scanner)
+	return(dataframe)
+}
 
 
 
