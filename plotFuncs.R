@@ -483,7 +483,6 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 	if (factor !=  "") {
 		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor)) + 
 			geom_line(aes_string(linetype=factor, color=factor), size=5) +
-			geom_point(aes_string(shape=factor, color=factor), size=1.5) +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
 			xlab("ROI") +
 			ylab("Z-Score") +
@@ -506,7 +505,6 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			}
 	} else {
 		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
-			geom_point(size=1.5) +
 			geom_line() +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
 			xlab("ROI") +
@@ -966,8 +964,111 @@ scanningSite_NASAAntartica <- function(dataframe, wintercol="winterover", subjec
 	return(dataframe)
 }
 
+## Declare a function to create columns of coefficients B = T1/TN
+# Dataframe should contain columns for all of the regions you want to see how they changed across scanners
+# colnums should be a vector with those column numbers
+phantomBetas <- function(dataframe, colnums) {
+	col_name_vec <- colnames(dataframe)
+	for (i in colnums) {
+	# Get the name of the column
+		col_name <- col_name_vec[[i]]
+		new_col_name <- paste0(col_name, "_tNdivtt1")
+		dataframe[,new_col_name] <- NA
+		for (j in 1:nrow(dataframe)) {
+			beta <- dataframe[j, col_name]/dataframe[1, col_name]
+			dataframe[j, new_col_name] <- beta
+		}
+	}
+	return(dataframe)
+}
 
 
+
+## Declare a function to make phantom plots of betas
+createPhantomGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=.5, upper_order=1.5, increment=.1, rois=TRUE, multiplePhantoms=FALSE, colorgedit_vec=c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3")) {
+	# retrieve the levels of factor
+	if (factor != "") {
+		levels_vec <- c()
+		nrows = nrow(dataframe)
+		for (i in 1:nrows) {
+			if (!(dataframe[i, factor] %in% levels_vec)) {
+				levels_vec <- c(levels_vec, dataframe[i, factor])
+			}
+		}
+	} else {
+		levels_vec <- c("no levels!")
+	}
+	# create the vector for scale_colour_manual
+	#if (length(levels_vec) == 1) {
+	#	color_vec <- c("brown1")
+	#} else if (length(levels_vec) == 2) {
+	#	color_vec <- c("brown1", "dodgerblue")
+	#} else if (length(levels_vec) == 3) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1")
+	#} else if (length(levels_vec) == 4) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3")
+	#} else if (length(levels_vec) == 5) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3", "lightskyblue1")
+	#}
+	# create the vector for scale_linetype_manual
+	if (length(levels_vec) == 1) {
+		linetype_vec <- c("solid")
+	} else if (length(levels_vec) == 2) {
+		linetype_vec <- c("solid", "solid")
+	} else if (length(levels_vec) == 3) {
+		linetype_vec <- c("solid", "solid", "solid")
+	} else if (length(levels_vec) == 4) {
+		linetype_vec <- c("solid", "solid", "solid", "solid")
+	} else if (length(levels_vec) == 5) {
+		linetype_vec <- c("solid", "solid", "solid", "solid", "solid")
+	}
+	# create the plot
+	if (factor !=  "") {
+		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor)) + 
+			geom_line(aes_string(linetype=factor, color=factor), size=2) +
+			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
+			xlab("ROI") +
+			ylab("Beta (B=(tN)/(t1))") +
+			geom_hline(aes(yintercept=1), linetype="longdash", colour="black", size=0.5) +
+			scale_colour_manual(name = factor, values = color_vec) +
+			scale_linetype_manual(name = factor, values = linetype_vec) +
+			theme_bw() +
+			theme(legend.position="top") +
+			#facet_grid(cols = vars(Lobe), scales="free", space="free_x") +
+			ggtitle(plotTitle)
+			if (rois == TRUE) {
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=35),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold", size=20), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=25),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
+			}
+	} else {
+		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
+			geom_line() +
+			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
+			xlab("ROI") +
+			ylab("Beta (B=(tN)/(t1))") +
+			geom_hline(aes(yintercept=0), linetype="longdash", colour="black", size=0.5) +
+			theme_bw() +
+			theme(legend.position="top") +
+			ggtitle(plotTitle)
+			if (rois == TRUE) {
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
+			}
+	}
+	return(plotToReturn)
+}
 
 
 
