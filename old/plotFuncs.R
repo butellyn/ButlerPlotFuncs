@@ -4,137 +4,49 @@
 ## Load library(s)
 #psych failed
 #FOR 3.5.1: install_load('scales', 'ggplot2', 'mgcv', 'stringi', 'plyr', 'reshape2', 'gridExtra')
-#Chead: source("/home/ebutler/adroseHelperScripts/R/afgrHelpFunc.R")
-#Galton:
-#source("/home/butellyn/adroseHelperScripts/R/afgrHelpFunc.R")
-library('ggplot2')
-library('mgcv')
-library('stringi')
-library('plyr')
-library('reshape2')
-library('gridExtra')
+source("/home/butellyn/adroseHelperScripts/R/afgrHelpFunc.R")
+install_load('ggplot2', 'mgcv', 'stringi', 'plyr', 'reshape2', 'gridExtra')
 #Oct 15, 2018: stringi failed, need 1.1.7
 
 
-##loadLibraries##
-# This function written by afgr will take a list of package names and load and source them if they are not found
-#loadLibs <- function(
-install_load <- function (package1, ...)  {   
-
-   # convert arguments to vector
-   packages <- c(package1, ...)
-
-   # start loop to determine if each package is installed
-   for(package in packages){
-
-       # if package is installed locally, load
-       if(package %in% rownames(installed.packages()))
-          do.call('library', list(package))
-
-       # if package is not installed locally, download, then load
-       else {
-          chooseCRANmirror(graphics=FALSE, ind = 111)
-          install.packages(package,dependencies=TRUE, repos='http://lib.stat.cmu.edu/R/CRAN/')
-          do.call("library", list(package))
-       }
-   } 
-}
-
-
-
-##summarySE##
-# Used to produce group bsed metrics 
-summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
-                      conf.interval=.95, .drop=TRUE) {
-
-    # New version of length which can handle NA's: if na.rm==T, don't count them
-    length2 <- function (x, na.rm=FALSE) {
-        if (na.rm) sum(!is.na(x))
-        else       length(x)
-    }
-
-    # This does the summary. For each group's data frame, return a vector with
-    # N, mean, and sd
-    datac <- ddply(data, groupvars, .drop=.drop,
-      .fun = function(xx, col) {
-        c(N    = length2(xx[[col]], na.rm=na.rm),
-          mean = mean   (xx[[col]], na.rm=na.rm),
-          sd   = sd     (xx[[col]], na.rm=na.rm)
-        )
-      },
-      measurevar
-    )
-
-    # Rename the "mean" column    
-    datac <- rename(datac, c("mean" = measurevar))
-
-    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
-
-    # Confidence interval multiplier for standard error
-    # Calculate t-statistic for confidence interval: 
-    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
-    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
-    datac$ci <- datac$se * ciMult
-
-    return(datac)
-}
-
 ## Declare a function to create mean-centered age variables (((THIS WORKS)))
-# Changed on July 12, 2019
-#ageVars <- function(dataframe, ageColNum) {
-#	dataframe$age_MC <- dataframe[,ageColNum] - mean(dataframe[,ageColNum])
-#	dataframe$ageSq_MC <- dataframe[,ageColNum]^2 - mean(dataframe[,ageColNum]^2)
-#	dataframe$ageCu_MC <- dataframe[,ageColNum]^3 - mean(dataframe[,ageColNum]^3)
-#	return(dataframe)
-#}
 ageVars <- function(dataframe, ageColNum) {
 	dataframe$age_MC <- dataframe[,ageColNum] - mean(dataframe[,ageColNum])
-	dataframe$ageSq_MC <- dataframe$age_MC^2 - mean(dataframe$age_MC^2)
-	dataframe$ageCu_MC <- dataframe$age_MC^3 - mean(dataframe$age_MC^3)
+	dataframe$ageSq_MC <- dataframe[,ageColNum]^2 - mean(dataframe[,ageColNum]^2)
+	dataframe$ageCu_MC <- dataframe[,ageColNum]^3 - mean(dataframe[,ageColNum]^3)
 	return(dataframe)
 }
 
 
 ## Declare a function to remove relationship with other covariates and create z-scores of residuals (((THIS WORKS)))
 # Input data types: dataframe, string, vector (put in empty vector if you just want z-scores)
-# November 6, 2019: NEVER REGRESS OUT VARIABLES. See Freckleton 2002, "On the misuse of residuals in ecology:
-# regression of residuals vs. multiple regression"
 regressOutVars <- function(dataframe, DV, IVColumnNums) {
-	print("DO NOT USE THIS. See Freckleton, 2002")
 	if (length(IVColumnNums) >= 1) {
 		dataframe <- cbind(dataframe, NA)
 		numcols = ncol(dataframe)
 		names(dataframe)[numcols] <- paste0(DV, "_regressed")
-		if (colnames(dataframe[IVColumnNums[[1]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)") 
-		} else if (colnames(dataframe[IVColumnNums[[1]]]) == "race2") {  IVstring <- paste0(IVstring, "+", "factor(race2)") 
-		} else { IVstring <- paste0("~",colnames(dataframe[IVColumnNums[[1]]]))
-		}
+		IVstring <- paste0("~",colnames(dataframe[IVColumnNums[[1]]]))
 		for (i in 2:length(IVColumnNums)) {
-			if (colnames(dataframe[IVColumnNums[[i]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)") 
-			} else if (colnames(dataframe[IVColumnNums[[i]]]) == "race2") { IVstring <- paste0(IVstring, "+", "factor(race2)") 
-			} else { IVstring <- paste0(IVstring, "+", colnames(dataframe[IVColumnNums[[i]]])) 
-			}
+			IVstring <- paste0(IVstring, "+", colnames(dataframe[IVColumnNums[[i]]])) 
 		}
 		dataframe[,numcols] <- residuals(lm(as.formula(paste(DV, IVstring)), data=dataframe, na.action = na.exclude))
 		dataframe$newcol <- NA
 		names(dataframe)[numcols+1] <- paste0(DV, "_regressed_zscore")
 		dataframe[,numcols+1] <- dataframe[,numcols]/sd(dataframe[,numcols], na.rm=TRUE)
+		return(dataframe)
 	} else if (length(IVColumnNums) == 0) {
 		numcols = ncol(dataframe)
 		dataframe$newcol <- NA
 		names(dataframe)[numcols+1] <- paste0(DV, "_zscore")
 		dataframe[,numcols+1] <- (dataframe[,DV] - mean(dataframe[,DV]))/sd(dataframe[,DV], na.rm=TRUE)
+		return(dataframe)
 	}
-	return(dataframe)
 }
 
 
 ## Declare a function that calls regressOutVars to perform this for multiple DVs (((THIS WORKS)))
 # Input data types: dataframe, vector, vector
-# November 6, 2019: NEVER REGRESS OUT VARIABLES. See Freckleton 2002, "On the misuse of residuals in ecology:
-# regression of residuals vs. multiple regression"
 regressMultDVs <- function(dataframe, DVColumnNums, IVColumnNums) {
-	print("DO NOT USE THIS. See Freckleton, 2002")
 	for (i in 1:length(DVColumnNums)) {
 		DV <- colnames(dataframe[DVColumnNums[[i]]])
 		dataframe <- regressOutVars(dataframe, DV, IVColumnNums)
@@ -146,14 +58,18 @@ regressMultDVs <- function(dataframe, DVColumnNums, IVColumnNums) {
 ## Declare a function to create lobular volume variables
 # ROI_ListofLists should have sub-elements that match column names in the dataframe
 # ROI_ListofLists should contain raw values (NO z-scores)
-lobeVolumes <- function(dataframe, ROI_ListofLists, lastList=6, firstList=1) {
-	maxi <- lastList
-	mini <- firstList
-	for (i in mini:maxi) {
+# The -1 should only be present if the last sublist in ROI_ListofLists is not being used
+lobeVolumes <- function(dataframe, ROI_ListofLists, lastList=FALSE) {
+	if (lastList == TRUE) {
+		max = length(ROI_ListofLists)
+	} else {
+		max = length(ROI_ListofLists) - 1
+	}
+	for (i in 1:max) {
 		dataframe$newcol <- 0 
 		for (j in 1:length(ROI_ListofLists[[i]])) {
 			# Get the column with the name ROI_ListofLists[[i]][[j]]
-			#num <- which(colnames(dataframe) == ROI_ListofLists[[i]][j])
+			num <- which(colnames(dataframe) == ROI_ListofLists[[i]][j])
 			# Add this column to newcol
 			dataframe$newcol = dataframe$newcol + dataframe[ , ROI_ListofLists[[i]][j]]
 		}
@@ -204,54 +120,6 @@ averageLeftAndRight_Vol <- function(dataframe, rightString, leftString, averageS
 	}
 }
 
-## Declare a function to average left and right ROIs for fractional anisotropy
-averageLeftAndRight_FA <- function(dataframe, rightString="_r", leftString="_l", averageString="_ave") {
-	splitcols <- strsplit(colnames(dataframe), split="_")
-	rightcols <- c()
-	leftcols <- c()
-	for (i in 1:length(splitcols)) {
-		side <- tail(splitcols[[i]], n=1)
-		if (side == "r") { rightcols <- c(rightcols, i) }
-		if (side == "l") { leftcols <- c(leftcols, i) }
-	}
-	dataframe.right <- dataframe[ , rightcols]
-	dataframe.left <- dataframe[ , leftcols]
-	numnewcols <- ncol(dataframe.right)
-	numcolsdataframe <- ncol(dataframe)
-	# check if new dataframes are in the same order; if not, make it so
-	right_vec <- colnames(dataframe.right)
-	left_vec <- colnames(dataframe.left)
-	right_neutral_vec <- gsub(pattern=paste0(rightString, "$"), replacement="", x=right_vec)
-	left_neutral_vec <- gsub(pattern=paste0(leftString, "$"), replacement="", x=left_vec)
-	if (identical(right_neutral_vec, left_neutral_vec)){
-		# make numnewcols new columns in dataframe
-		blankcol <- matrix(nrow=nrow(dataframe), ncol=1)
-		for (i in 1:numnewcols) {
-			dataframe <- cbind(dataframe, blankcol)
-			# name the new columns by replacing rightString with averageString
-			names(dataframe)[numcolsdataframe+i] <- gsub(pattern=rightString, replacement=averageString, x=names(dataframe.right)[i])
-			# compute the averages
-			dataframe[ , numcolsdataframe+i] <- (dataframe.right[,i] + dataframe.left[,i])/2
-		}
-	return(dataframe) 
-	# If the vectors contain the same elements, but in different orders	
-	} else if (setequal(right_neutral_vec, left_neutral_vec) && length(right_neutral_vec) == length(left_neutral_vec)) {
-		# sort the dataframes
-		left_ordered_vec <- gsub(pattern=paste0(rightString, "$"), replacement=leftString, x=right_vec)
-		dataframe.left <- dataframe.left[left_ordered_vec]
-		# subset dataframe to only include columns that aren't left or right
-		dataframe <- dataframe[ , !(names(dataframe) %in% right_vec)] 
-		dataframe <- dataframe[ , !(names(dataframe) %in% left_ordered_vec)]
-		# merge in dataframe.right and dataframe.left
-		dataframe <- cbind(dataframe, dataframe.right)
-		dataframe <- cbind(dataframe, dataframe.left)
-		# call the function again
-		averageLeftAndRight_FA(dataframe, rightString, leftString, averageString)
-	} else {
-		print("Your dataframe does not contain the same ROIs for the left and right hemispheres. Please modify your dataframe so that this is true to use this function.")
-	}
-}
-
 ## Declare a function to average left and right ROIs, weighted by volume
 averageLeftAndRight_WeightByVol <- function(vol_dataframe, other_dataframe, volString="vol_", otherString="gmd_", rightString="_R_", leftString="_L_", averageString="_ave_") {
 	vol_dataframe.right <- vol_dataframe[ , grep(rightString, names(vol_dataframe))]
@@ -289,39 +157,24 @@ averageLeftAndRight_WeightByVol <- function(vol_dataframe, other_dataframe, volS
 		### other
 		# sort the dataframes
 		other_left_ordered_vec <- gsub(pattern=rightString, replacement=leftString, x=other_right_vec)
-		#other_dataframe.left <- other_dataframe.left[other_left_ordered_vec]
-		other_dataframe.right <- other_dataframe.right[,order(names(other_dataframe.right))]
-		other_dataframe.left <- other_dataframe.left[,order(names(other_dataframe.left))]
+		other_dataframe.left <- other_dataframe.left[other_left_ordered_vec]
 		# subset dataframe to only include columns that aren't left or right
 		other_dataframe <- other_dataframe[ , !(names(other_dataframe) %in% other_right_vec)] 
 		other_dataframe <- other_dataframe[ , !(names(other_dataframe) %in% other_left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
-		if (!(is.vector(other_dataframe))) {
-			other_dataframe <- cbind(other_dataframe, other_dataframe.right)
-			other_dataframe <- cbind(other_dataframe, other_dataframe.left)
-		} else {
-			other_dataframe2 <- cbind(other_dataframe.right, other_dataframe.left)
-			other_dataframe2$bblid <- other_dataframe
-			other_dataframe <- other_dataframe2
-		}
+		other_dataframe <- cbind(other_dataframe, other_dataframe.right)
+		other_dataframe <- cbind(other_dataframe, other_dataframe.left)
 		### vol
 		# sort the dataframes
 		vol_left_ordered_vec <- gsub(pattern=rightString, replacement=leftString, x=other_right_vec)
 		vol_left_ordered_vec <- gsub(pattern=otherString, replacement=volString, x=vol_left_ordered_vec)
-		vol_dataframe.right <- vol_dataframe.right[,order(names(vol_dataframe.right))]
-		vol_dataframe.left <- vol_dataframe.left[,order(names(vol_dataframe.left))]
+		vol_dataframe.left <- vol_dataframe.left[vol_left_ordered_vec]
 		# subset dataframe to only include columns that aren't left or right
 		vol_dataframe <- vol_dataframe[ , !(names(vol_dataframe) %in% vol_right_vec)] 
-		vol_dataframe <- vol_dataframe[ , !(names(vol_dataframe) %in% vol_left_ordered_vec)]
+		vol_dataframe <- other_dataframe[ , !(names(vol_dataframe) %in% vol_left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
-		if (!(is.vector(vol_dataframe))) {
-			vol_dataframe <- cbind(vol_dataframe, vol_dataframe.right)
-			vol_dataframe <- cbind(vol_dataframe, vol_dataframe.left)
-		} else {
-			vol_dataframe2 <- cbind(vol_dataframe.right, vol_dataframe.left)
-			vol_dataframe2$bblid <- vol_dataframe
-			vol_dataframe <- vol_dataframe2
-		}
+		vol_dataframe <- cbind(vol_dataframe, vol_dataframe.right)
+		vol_dataframe <- cbind(vol_dataframe, vol_dataframe.left)
 		# call the function again
 		averageLeftAndRight_WeightByVol(vol_dataframe, other_dataframe, volString, otherString, rightString, leftString, averageString)
 	} else {
@@ -361,14 +214,13 @@ removeUnderScore <- function(ROI_ListofLists) {
 # vol_dataframe has to have total lobe volumes for this to work
 # lastList should be true if you want to use the last list in ROI_ListofLists (Other/Vol)
 # only configured for type to be equal to "gmd" or "cort" at the moment
-averageROIsInLobes_WeightByVol <- function(vol_dataframe, other_dataframe, ROI_ListofLists_Vol, ROI_ListofLists_Other, firstList=1, lastList=FALSE, type) {
+averageROIsInLobes_WeightByVol <- function(vol_dataframe, other_dataframe, ROI_ListofLists_Vol, ROI_ListofLists_Other, lastList=FALSE, type) {
 	if (lastList == TRUE) {
-		maxi = length(ROI_ListofLists_Other)
+		max = length(ROI_ListofLists_Other)
 	} else {
-		maxi = length(ROI_ListofLists_Other)-1
+		max = length(ROI_ListofLists_Other)-1
 	}
-	mini <- firstList
-	for (i in mini:maxi) {
+	for (i in 1:max) {
 		other_dataframe$newcol <- 0 
 		for (j in 1:length(ROI_ListofLists_Other[[i]])) {
 			# Get the column with the name ROI_ListofLists_Other[[i]][[j]] & Vol
@@ -378,16 +230,13 @@ averageROIsInLobes_WeightByVol <- function(vol_dataframe, other_dataframe, ROI_L
 			other_dataframe$newcol = other_dataframe$newcol + other_dataframe[ , num_other]*vol_dataframe[ , num_vol]
 		}
 		# divide the column by the total volume for the region
-		#volcol <- grep(names(ROI_ListofLists_Vol[i]), colnames(vol_dataframe), value=TRUE)
-		volcol <- paste0(names(ROI_ListofLists_Vol[i]), "_Vol")
+		volcol <- grep(names(ROI_ListofLists_Vol[i]), colnames(vol_dataframe), value=TRUE)
 		other_dataframe$newcol = other_dataframe$newcol/vol_dataframe[,volcol]
 		# name column in dataframe
 		if (type == "gmd") {
 			string = "_GMD"
 		} else if (type == "cort") {
 			string = "_CT"
-		} else if (type == "fa") {
-			string = "_FA"
 		}
 		colnames(other_dataframe)[colnames(other_dataframe)=="newcol"] <- paste0(names(ROI_ListofLists_Other[i]), string)
 	}
@@ -423,7 +272,7 @@ roiLobes <- function(ROIlist, lobeDef=FALSE) {
 		Temporal_vec <- c(grep("_FuG_", ROIlist, value=TRUE), grep("_PT_", ROIlist, value=TRUE), grep("_PP_", ROIlist, value=TRUE), grep("_ITG_", ROIlist, value=TRUE), grep("_CO_", ROIlist, value=TRUE), grep("_MTG_", ROIlist, value=TRUE), grep("_TMP_", ROIlist, value=TRUE), grep("_STG_", ROIlist, value=TRUE), grep("_TTG_", ROIlist, value=TRUE))
 		Parietal_vec <- c(grep("_PCu_", ROIlist, value=TRUE), grep("_PoG_", ROIlist, value=TRUE), grep("_AnG_", ROIlist, value=TRUE), grep("_PO_", ROIlist, value=TRUE), grep("_SPL_", ROIlist, value=TRUE), grep("_MPrG_", ROIlist, value=TRUE), grep("_SMG_", ROIlist, value=TRUE), grep("_MPoG_", ROIlist, value=TRUE))
 		Occipital_vec <- c(grep("_IOG_", ROIlist, value=TRUE), grep("_Cun_", ROIlist, value=TRUE), grep("_LiG_", ROIlist, value=TRUE), grep("_OFuG_", ROIlist, value=TRUE), grep("_MOG_", ROIlist, value=TRUE), grep("_Calc_", ROIlist, value=TRUE), grep("_OCP_", ROIlist, value=TRUE), grep("_SOG_", ROIlist, value=TRUE))
-		Cerebellum_vec <- c(grep("_Cerebellum_Exterior_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_I.V_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VI.VII_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VIII.X_", ROIlist, value=TRUE))
+		Cerebellum_vec <- c(grep("_Cerebellar_Exterior_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_I.V_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VI.VII_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VIII.X_", ROIlist, value=TRUE))
 		ROILobes_list <- list(BasGang_vec, Limbic_vec, FrontOrb_vec, FrontDors_vec, Temporal_vec, Parietal_vec, Occipital_vec, Cerebellum_vec)
 		names(ROILobes_list) <- list("BasGang", "Limbic", "FrontOrb", "FrontDors", "Temporal", "Parietal", "Occipital", "Cerebellum")
 		return(ROILobes_list) 
@@ -447,7 +296,7 @@ roiLobes <- function(ROIlist, lobeDef=FALSE) {
 ## Declare a function to create a dataframe that can be used to plot ROI parameters
 # factorsList should be names of columns from dataframe that you want in summaryDF, as a vector
 # ROI_ListofLists takes output of roiLobes()
-createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE, simpleNames=TRUE, pattern1="vol_miccai_ave_", pattern2="_zscore", replacement="", ROIlist=c(), CNB=FALSE) { #ERB: ROIlist might be a problem... unused argument
+createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE, simpleNames=TRUE, pattern1="vol_miccai_ave_", pattern2="_zscore", replacement="", ROIlist=c()) { #ERB: ROIlist might be a problem... unused argument
 	if (length(factorsList) > 0) {
 		# find the number of levels for each factor variable
 		nameLevels <- list()
@@ -585,12 +434,6 @@ createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE,
 		i = i + 1
 	}
 	summaryDF$ROI_name <- factor(summaryDF$ROI_name, levels=roiLevels_vec)
-	if (CNB == TRUE) {
-		names(summaryDF)[names(summaryDF) == "ROI_name"] <- "Test"
-		names(summaryDF)[names(summaryDF) == "Lobe"] <- "Domain"
-		names(summaryDF)[names(summaryDF) == "ROI_mean"] <- "Mean"
-		names(summaryDF)[names(summaryDF) == "ROI_se"] <- "SE"
-	}
 	return(summaryDF)
 }
 
@@ -599,9 +442,9 @@ createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE,
 # "dataframe" should be the output of createSummaryDF, but filtered so that only one factor with multiple levels remains
 # "factor" should be the factor for which you want different colored lines (factor from above), data type = character
 # "plotTitle" should describe the levels that you kept of the other factors from dataframe and how the z-scores were calculated (e.g., what was regressed out)
-createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1, upper_order=1, increment=.2, rois=TRUE, ylabel="Z-Score (95% CI)", builtInColors=TRUE, color_vec=c()) {
+createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1, upper_order=1, increment=.2, rois=TRUE) {
 	# retrieve the levels of factor
-	if (factor != "" & typeof(dataframe[, factor]) == "character") {
+	if (factor != "") {
 		levels_vec <- c()
 		nrows = nrow(dataframe)
 		for (i in 1:nrows) {
@@ -609,24 +452,20 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 				levels_vec <- c(levels_vec, dataframe[i, factor])
 			}
 		}
-	} else if (factor != "" & typeof(dataframe[, factor]) == "integer") {
-		levels_vec <- levels(dataframe[,factor])
 	} else {
 		levels_vec <- c("no levels!")
 	}
 	# create the vector for scale_colour_manual
-	if (builtInColors == TRUE) {
-		if (length(levels_vec) == 1) {
-			color_vec <- c("brown1")
-		} else if (length(levels_vec) == 2) {
-			color_vec <- c("brown1", "dodgerblue")
-		} else if (length(levels_vec) == 3) {
-			color_vec <- c("brown1", "dodgerblue", "darkseagreen1")
-		} else if (length(levels_vec) == 4) {
-			color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "darkcyan")
-		} else if (length(levels_vec) == 5) {
-			color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "darkcyan", "lightskyblue1")
-		}
+	if (length(levels_vec) == 1) {
+		color_vec <- c("brown1")
+	} else if (length(levels_vec) == 2) {
+		color_vec <- c("brown1", "dodgerblue")
+	} else if (length(levels_vec) == 3) {
+		color_vec <- c("brown1", "dodgerblue", "darkseagreen1")
+	} else if (length(levels_vec) == 4) {
+		color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "darkcyan")
+	} else if (length(levels_vec) == 5) {
+		color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "darkcyan", "lightskyblue1")
 	}
 	# create the vector for scale_linetype_manual
 	if (length(levels_vec) == 1) {
@@ -642,10 +481,11 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 	}
 	# create the plot
 	if (factor !=  "") {
-		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor, color=factor)) + 
-			geom_line(aes_string(linetype=factor, color=factor), size=3) +
+		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor)) + 
+			geom_line(aes_string(linetype=factor, color=factor), size=5) +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
-			ylab(ylabel) +
+			xlab("ROI") +
+			ylab("Z-Score") +
 			geom_hline(aes(yintercept=0), linetype="longdash", colour="black", size=0.5) +
 			scale_colour_manual(name = factor, values = color_vec) +
 			scale_linetype_manual(name = factor, values = linetype_vec) +
@@ -654,14 +494,12 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			#facet_grid(cols = vars(Lobe), scales="free", space="free_x") +
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
-				plotToReturn = plotToReturn + geom_errorbar(aes(ymin=ROI_mean-2*ROI_se, ymax=ROI_mean+2*ROI_se), width=.2, position=position_dodge(width = 0.2)) + ####
-				xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
-				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
-			axis.title.y = element_text(face="bold", size=40),
-			plot.title = element_text(face="bold", size=40), strip.text.x = element_text(size=12))
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=25),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
 			} else {
-				plotToReturn = plotToReturn + geom_errorbar(aes(ymin=ROI_mean-2*ROI_se, ymax=ROI_mean+2*ROI_se), width=.5, position=position_dodge(width = 0.2), size=2) + 
-				xlab("Brain Regions") + theme(text=element_text(size=25), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=18), axis.title.x = element_text(face="bold", size=25),
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
 			axis.title.y = element_text(face="bold", size=25),
 			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
 			}
@@ -669,18 +507,19 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
 			geom_line() +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
-			ylab(ylabel) +
+			xlab("ROI") +
+			ylab("Z-Score") +
 			geom_hline(aes(yintercept=0), linetype="longdash", colour="black", size=0.5) +
 			theme_bw() +
 			theme(legend.position="top") +
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
-				plotToReturn = plotToReturn + xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
-				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
-			axis.title.y = element_text(face="bold", size=40),
-			plot.title = element_text(face="bold", size=40), strip.text.x = element_text(size=15))
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
 			} else {
-				plotToReturn = plotToReturn + xlab("Brain Regions") + theme(text=element_text(size=40), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
 			axis.title.y = element_text(face="bold", size=28),
 			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
 			}
@@ -1125,36 +964,110 @@ scanningSite_NASAAntartica <- function(dataframe, wintercol="winterover", subjec
 	return(dataframe)
 }
 
-
-## Declare a function to get whole-brain cortical thickness and gmd
-lobesToWholeBrain_WeightByVol <- function(vol_dataframe, other_dataframe, lobe_short_colnames, type) {
-	# iterate over the vector of lobe_vol_colnames
-	other_dataframe$newcol <- 0
-	for (i in 1:length(lobe_short_colnames)) {
-		# get the columns numbers from each dataframe with this lobe value
-		vol_colname <- grep(lobe_short_colnames[[i]], colnames(vol_dataframe), value=TRUE)
-		other_colname <- grep(lobe_short_colnames[[i]], colnames(other_dataframe), value=TRUE)
-		other_dataframe$newcol <- other_dataframe$newcol + other_dataframe[,other_colname]*vol_dataframe[,vol_colname]
+## Declare a function to create columns of coefficients B = T1/TN
+# Dataframe should contain columns for all of the regions you want to see how they changed across scanners
+# colnums should be a vector with those column numbers
+phantomBetas <- function(dataframe, colnums) {
+	col_name_vec <- colnames(dataframe)
+	for (i in colnums) {
+	# Get the name of the column
+		col_name <- col_name_vec[[i]]
+		new_col_name <- paste0(col_name, "_tNdivtt1")
+		dataframe[,new_col_name] <- NA
+		for (j in 1:nrow(dataframe)) {
+			beta <- dataframe[j, col_name]/dataframe[1, col_name]
+			dataframe[j, new_col_name] <- beta
+		}
 	}
-	other_dataframe$newcol <-  other_dataframe$newcol/vol_dataframe$regionalTotalVolume
+	return(dataframe)
+}
 
-	if (type == "cort") {
-		newname <- "ACT"
-	} else if (type == "gmd") {
-		newname <- "AGMD"
-	} else if (type == "alff") {
-		newname <- "AALFF"
-	} else if (type == "cbf") {
-		newname <- "ACBF"
-	} else if (type == "fa") {
-		newname <- "AFA"
-	} else if (type == "md") {
-		newname <- "AMD"
-	} else if (type == "reho") {
-		newname <- "AREHO"
+
+
+## Declare a function to make phantom plots of betas
+createPhantomGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=.5, upper_order=1.5, increment=.1, rois=TRUE, multiplePhantoms=FALSE, colorgedit_vec=c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3")) {
+	# retrieve the levels of factor
+	if (factor != "") {
+		levels_vec <- c()
+		nrows = nrow(dataframe)
+		for (i in 1:nrows) {
+			if (!(dataframe[i, factor] %in% levels_vec)) {
+				levels_vec <- c(levels_vec, dataframe[i, factor])
+			}
+		}
+	} else {
+		levels_vec <- c("no levels!")
 	}
-	colnames(other_dataframe)[colnames(other_dataframe)=="newcol"] <- newname
-	return(other_dataframe)
+	# create the vector for scale_colour_manual
+	#if (length(levels_vec) == 1) {
+	#	color_vec <- c("brown1")
+	#} else if (length(levels_vec) == 2) {
+	#	color_vec <- c("brown1", "dodgerblue")
+	#} else if (length(levels_vec) == 3) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1")
+	#} else if (length(levels_vec) == 4) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3")
+	#} else if (length(levels_vec) == 5) {
+	#	color_vec <- c("brown1", "dodgerblue", "darkseagreen1", "goldenrod3", "lightskyblue1")
+	#}
+	# create the vector for scale_linetype_manual
+	if (length(levels_vec) == 1) {
+		linetype_vec <- c("solid")
+	} else if (length(levels_vec) == 2) {
+		linetype_vec <- c("solid", "solid")
+	} else if (length(levels_vec) == 3) {
+		linetype_vec <- c("solid", "solid", "solid")
+	} else if (length(levels_vec) == 4) {
+		linetype_vec <- c("solid", "solid", "solid", "solid")
+	} else if (length(levels_vec) == 5) {
+		linetype_vec <- c("solid", "solid", "solid", "solid", "solid")
+	}
+	# create the plot
+	if (factor !=  "") {
+		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor)) + 
+			geom_line(aes_string(linetype=factor, color=factor), size=2) +
+			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
+			xlab("ROI") +
+			ylab("Beta (B=(tN)/(t1))") +
+			geom_hline(aes(yintercept=1), linetype="longdash", colour="black", size=0.5) +
+			scale_colour_manual(name = factor, values = color_vec) +
+			scale_linetype_manual(name = factor, values = linetype_vec) +
+			theme_bw() +
+			theme(legend.position="top") +
+			#facet_grid(cols = vars(Lobe), scales="free", space="free_x") +
+			ggtitle(plotTitle)
+			if (rois == TRUE) {
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=35),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold", size=20), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
+			axis.title.y = element_text(face="bold", size=25),
+			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
+			}
+	} else {
+		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
+			geom_line() +
+			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
+			xlab("ROI") +
+			ylab("Beta (B=(tN)/(t1))") +
+			geom_hline(aes(yintercept=0), linetype="longdash", colour="black", size=0.5) +
+			theme_bw() +
+			theme(legend.position="top") +
+			ggtitle(plotTitle)
+			if (rois == TRUE) {
+				plotToReturn = plotToReturn + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
+			} else {
+				plotToReturn = plotToReturn + theme(text=element_text(size=40), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
+			axis.title.y = element_text(face="bold", size=28),
+			plot.title = element_text(face="bold", size=28), strip.text.x = element_text(size=15))
+			}
+	}
+	return(plotToReturn)
 }
 
 
