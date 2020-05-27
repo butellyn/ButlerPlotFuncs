@@ -19,7 +19,7 @@ library('gridExtra')
 ##loadLibraries##
 # This function written by afgr will take a list of package names and load and source them if they are not found
 #loadLibs <- function(
-install_load <- function (package1, ...)  {   
+install_load <- function (package1, ...)  {
 
    # convert arguments to vector
    packages <- c(package1, ...)
@@ -37,13 +37,13 @@ install_load <- function (package1, ...)  {
           install.packages(package,dependencies=TRUE, repos='http://lib.stat.cmu.edu/R/CRAN/')
           do.call("library", list(package))
        }
-   } 
+   }
 }
 
 
 
 ##summarySE##
-# Used to produce group bsed metrics 
+# Used to produce group bsed metrics
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
 
@@ -57,21 +57,22 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
     # N, mean, and sd
     datac <- ddply(data, groupvars, .drop=.drop,
       .fun = function(xx, col) {
-        c(N    = length2(xx[[col]], na.rm=na.rm),
-          mean = mean   (xx[[col]], na.rm=na.rm),
-          sd   = sd     (xx[[col]], na.rm=na.rm)
+        c(N      = length2(xx[[col]], na.rm=na.rm),
+          mean   = mean   (xx[[col]], na.rm=na.rm),
+          median = median (xx[[col]], na.rm=na.rm),
+          sd     = sd     (xx[[col]], na.rm=na.rm)
         )
       },
       measurevar
     )
 
-    # Rename the "mean" column    
-    datac <- rename(datac, c("mean" = measurevar))
+    # Rename the "mean" column
+    datac <- plyr::rename(datac, c("mean" = measurevar))
 
     datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
 
     # Confidence interval multiplier for standard error
-    # Calculate t-statistic for confidence interval: 
+    # Calculate t-statistic for confidence interval:
     # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
     ciMult <- qt(conf.interval/2 + .5, datac$N-1)
     datac$ci <- datac$se * ciMult
@@ -105,14 +106,14 @@ regressOutVars <- function(dataframe, DV, IVColumnNums) {
 		dataframe <- cbind(dataframe, NA)
 		numcols = ncol(dataframe)
 		names(dataframe)[numcols] <- paste0(DV, "_regressed")
-		if (colnames(dataframe[IVColumnNums[[1]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)") 
-		} else if (colnames(dataframe[IVColumnNums[[1]]]) == "race2") {  IVstring <- paste0(IVstring, "+", "factor(race2)") 
+		if (colnames(dataframe[IVColumnNums[[1]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)")
+		} else if (colnames(dataframe[IVColumnNums[[1]]]) == "race2") {  IVstring <- paste0(IVstring, "+", "factor(race2)")
 		} else { IVstring <- paste0("~",colnames(dataframe[IVColumnNums[[1]]]))
 		}
 		for (i in 2:length(IVColumnNums)) {
-			if (colnames(dataframe[IVColumnNums[[i]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)") 
-			} else if (colnames(dataframe[IVColumnNums[[i]]]) == "race2") { IVstring <- paste0(IVstring, "+", "factor(race2)") 
-			} else { IVstring <- paste0(IVstring, "+", colnames(dataframe[IVColumnNums[[i]]])) 
+			if (colnames(dataframe[IVColumnNums[[i]]]) == "sex") { IVstring <- paste0(IVstring, "+", "factor(sex)")
+			} else if (colnames(dataframe[IVColumnNums[[i]]]) == "race2") { IVstring <- paste0(IVstring, "+", "factor(race2)")
+			} else { IVstring <- paste0(IVstring, "+", colnames(dataframe[IVColumnNums[[i]]]))
 			}
 		}
 		dataframe[,numcols] <- residuals(lm(as.formula(paste(DV, IVstring)), data=dataframe, na.action = na.exclude))
@@ -150,7 +151,7 @@ lobeVolumes <- function(dataframe, ROI_ListofLists, lastList=6, firstList=1) {
 	maxi <- lastList
 	mini <- firstList
 	for (i in mini:maxi) {
-		dataframe$newcol <- 0 
+		dataframe$newcol <- 0
 		for (j in 1:length(ROI_ListofLists[[i]])) {
 			# Get the column with the name ROI_ListofLists[[i]][[j]]
 			#num <- which(colnames(dataframe) == ROI_ListofLists[[i]][j])
@@ -185,14 +186,14 @@ averageLeftAndRight_Vol <- function(dataframe, rightString, leftString, averageS
 			# compute the averages
 			dataframe[ , numcolsdataframe+i] <- (dataframe.right[,i] + dataframe.left[,i])/2
 		}
-	return(dataframe) 
-	# If the vectors contain the same elements, but in different orders	
+	return(dataframe)
+	# If the vectors contain the same elements, but in different orders
 	} else if (setequal(right_neutral_vec, left_neutral_vec) && length(right_neutral_vec) == length(left_neutral_vec)) {
 		# sort the dataframes
 		left_ordered_vec <- gsub(pattern=rightString, replacement=leftString, x=right_vec)
 		dataframe.left <- dataframe.left[left_ordered_vec]
 		# subset dataframe to only include columns that aren't left or right
-		dataframe <- dataframe[ , !(names(dataframe) %in% right_vec)] 
+		dataframe <- dataframe[ , !(names(dataframe) %in% right_vec)]
 		dataframe <- dataframe[ , !(names(dataframe) %in% left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
 		dataframe <- cbind(dataframe, dataframe.right)
@@ -233,14 +234,14 @@ averageLeftAndRight_FA <- function(dataframe, rightString="_r", leftString="_l",
 			# compute the averages
 			dataframe[ , numcolsdataframe+i] <- (dataframe.right[,i] + dataframe.left[,i])/2
 		}
-	return(dataframe) 
-	# If the vectors contain the same elements, but in different orders	
+	return(dataframe)
+	# If the vectors contain the same elements, but in different orders
 	} else if (setequal(right_neutral_vec, left_neutral_vec) && length(right_neutral_vec) == length(left_neutral_vec)) {
 		# sort the dataframes
 		left_ordered_vec <- gsub(pattern=paste0(rightString, "$"), replacement=leftString, x=right_vec)
 		dataframe.left <- dataframe.left[left_ordered_vec]
 		# subset dataframe to only include columns that aren't left or right
-		dataframe <- dataframe[ , !(names(dataframe) %in% right_vec)] 
+		dataframe <- dataframe[ , !(names(dataframe) %in% right_vec)]
 		dataframe <- dataframe[ , !(names(dataframe) %in% left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
 		dataframe <- cbind(dataframe, dataframe.right)
@@ -283,8 +284,8 @@ averageLeftAndRight_WeightByVol <- function(vol_dataframe, other_dataframe, volS
 			# compute the averages
 			other_dataframe[ , numcolsdataframe+i] <- (other_dataframe.right[,i]*vol_dataframe.right[,i] + other_dataframe.left[,i]*vol_dataframe.left[,i])/(vol_dataframe.right[,i] + vol_dataframe.left[,i])
 		}
-	return(other_dataframe) 
-	# If the vectors contain the same elements, but in different orders	
+	return(other_dataframe)
+	# If the vectors contain the same elements, but in different orders
 	} else if (setequal(vol_right_neutral_vec, vol_left_neutral_vec) && length(vol_right_neutral_vec) == length(vol_left_neutral_vec) && setequal(vol_right_neutral_vec, other_left_neutral_vec) && length(vol_right_neutral_vec) == length(other_left_neutral_vec) && setequal(other_right_neutral_vec, other_left_neutral_vec) && length(other_right_neutral_vec) == length(other_left_neutral_vec)) {
 		### other
 		# sort the dataframes
@@ -293,7 +294,7 @@ averageLeftAndRight_WeightByVol <- function(vol_dataframe, other_dataframe, volS
 		other_dataframe.right <- other_dataframe.right[,order(names(other_dataframe.right))]
 		other_dataframe.left <- other_dataframe.left[,order(names(other_dataframe.left))]
 		# subset dataframe to only include columns that aren't left or right
-		other_dataframe <- other_dataframe[ , !(names(other_dataframe) %in% other_right_vec)] 
+		other_dataframe <- other_dataframe[ , !(names(other_dataframe) %in% other_right_vec)]
 		other_dataframe <- other_dataframe[ , !(names(other_dataframe) %in% other_left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
 		if (!(is.vector(other_dataframe))) {
@@ -311,7 +312,7 @@ averageLeftAndRight_WeightByVol <- function(vol_dataframe, other_dataframe, volS
 		vol_dataframe.right <- vol_dataframe.right[,order(names(vol_dataframe.right))]
 		vol_dataframe.left <- vol_dataframe.left[,order(names(vol_dataframe.left))]
 		# subset dataframe to only include columns that aren't left or right
-		vol_dataframe <- vol_dataframe[ , !(names(vol_dataframe) %in% vol_right_vec)] 
+		vol_dataframe <- vol_dataframe[ , !(names(vol_dataframe) %in% vol_right_vec)]
 		vol_dataframe <- vol_dataframe[ , !(names(vol_dataframe) %in% vol_left_ordered_vec)]
 		# merge in dataframe.right and dataframe.left
 		if (!(is.vector(vol_dataframe))) {
@@ -369,7 +370,7 @@ averageROIsInLobes_WeightByVol <- function(vol_dataframe, other_dataframe, ROI_L
 	}
 	mini <- firstList
 	for (i in mini:maxi) {
-		other_dataframe$newcol <- 0 
+		other_dataframe$newcol <- 0
 		for (j in 1:length(ROI_ListofLists_Other[[i]])) {
 			# Get the column with the name ROI_ListofLists_Other[[i]][[j]] & Vol
 			num_other <- which(colnames(other_dataframe) == ROI_ListofLists_Other[[i]][j])
@@ -414,19 +415,21 @@ removeUnderScore <- function(ROI_ListofLists) {
 
 ## Declare a function to create a dataframe with lobular definitions for each ROI (((THIS WORKS)))
 # structured for one modality at a time (?)
+# May 27, 2020: Moved MPrG to Frontal Dorsal, as per discussion about HiLo with
+# Ruben on May 12, 2020 on Slack
 roiLobes <- function(ROIlist, lobeDef=FALSE) {
 	if (lobeDef == FALSE) { # notes: "_Thal" or "_Thalamus_Proper_"
-		BasGang_vec <- c(grep("_Thal", ROIlist, value=TRUE), grep("_Putamen_", ROIlist, value=TRUE), grep("_Caudate_", ROIlist, value=TRUE), grep("_Pallidum_", ROIlist, value=TRUE), grep("_Accumbens_", ROIlist, value=TRUE), grep("_BasFor_", ROIlist, value=TRUE)) 
+		BasGang_vec <- c(grep("_Thal", ROIlist, value=TRUE), grep("_Putamen_", ROIlist, value=TRUE), grep("_Caudate_", ROIlist, value=TRUE), grep("_Pallidum_", ROIlist, value=TRUE), grep("_Accumbens_", ROIlist, value=TRUE), grep("_BasFor_", ROIlist, value=TRUE))
 		Limbic_vec <- c(grep("_PHG_", ROIlist, value=TRUE), grep("_Hip_", ROIlist, value=TRUE), grep("_Hippocampus_", ROIlist, value=TRUE), grep("_PIns_", ROIlist, value=TRUE), grep("_SCA_", ROIlist, value=TRUE), grep("_AIns_", ROIlist, value=TRUE), grep("_ACgG_", ROIlist, value=TRUE), grep("_PCgG_", ROIlist, value=TRUE), grep("_Ent_", ROIlist, value=TRUE), grep("_Amygdala_", ROIlist, value=TRUE), grep("_MCgG_", ROIlist, value=TRUE))
 		FrontOrb_vec <- c(grep("_FO_", ROIlist, value=TRUE), grep("_MFC_", ROIlist, value=TRUE), grep("_MOrG_", ROIlist, value=TRUE), grep("_POrG_", ROIlist, value=TRUE), grep("_OrIFG_", ROIlist, value=TRUE), grep("_TrIFG_", ROIlist, value=TRUE), grep("_AOrG_", ROIlist, value=TRUE), grep("_OpIFG_", ROIlist, value=TRUE), grep("_GRe_", ROIlist, value=TRUE), grep("_FRP_", ROIlist, value=TRUE), grep("_LOrG_", ROIlist, value=TRUE))
-		FrontDors_vec <- c(grep("_PrG_", ROIlist, value=TRUE), grep("_MSFG_", ROIlist, value=TRUE), grep("_SMC_", ROIlist, value=TRUE), grep("_MFG_", ROIlist, value=TRUE), grep("_SFG_", ROIlist, value=TRUE))
+		FrontDors_vec <- c(grep("_PrG_", ROIlist, value=TRUE), grep("_MPrG_", ROIlist, value=TRUE), grep("_MSFG_", ROIlist, value=TRUE), grep("_SMC_", ROIlist, value=TRUE), grep("_MFG_", ROIlist, value=TRUE), grep("_SFG_", ROIlist, value=TRUE))
 		Temporal_vec <- c(grep("_FuG_", ROIlist, value=TRUE), grep("_PT_", ROIlist, value=TRUE), grep("_PP_", ROIlist, value=TRUE), grep("_ITG_", ROIlist, value=TRUE), grep("_CO_", ROIlist, value=TRUE), grep("_MTG_", ROIlist, value=TRUE), grep("_TMP_", ROIlist, value=TRUE), grep("_STG_", ROIlist, value=TRUE), grep("_TTG_", ROIlist, value=TRUE))
-		Parietal_vec <- c(grep("_PCu_", ROIlist, value=TRUE), grep("_PoG_", ROIlist, value=TRUE), grep("_AnG_", ROIlist, value=TRUE), grep("_PO_", ROIlist, value=TRUE), grep("_SPL_", ROIlist, value=TRUE), grep("_MPrG_", ROIlist, value=TRUE), grep("_SMG_", ROIlist, value=TRUE), grep("_MPoG_", ROIlist, value=TRUE))
+		Parietal_vec <- c(grep("_PCu_", ROIlist, value=TRUE), grep("_PoG_", ROIlist, value=TRUE), grep("_AnG_", ROIlist, value=TRUE), grep("_PO_", ROIlist, value=TRUE), grep("_SPL_", ROIlist, value=TRUE), grep("_SMG_", ROIlist, value=TRUE), grep("_MPoG_", ROIlist, value=TRUE))
 		Occipital_vec <- c(grep("_IOG_", ROIlist, value=TRUE), grep("_Cun_", ROIlist, value=TRUE), grep("_LiG_", ROIlist, value=TRUE), grep("_OFuG_", ROIlist, value=TRUE), grep("_MOG_", ROIlist, value=TRUE), grep("_Calc_", ROIlist, value=TRUE), grep("_OCP_", ROIlist, value=TRUE), grep("_SOG_", ROIlist, value=TRUE))
 		Cerebellum_vec <- c(grep("_Cerebellum_Exterior_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_I.V_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VI.VII_", ROIlist, value=TRUE), grep("_Cerebellar_Vermal_Lobules_VIII.X_", ROIlist, value=TRUE))
 		ROILobes_list <- list(BasGang_vec, Limbic_vec, FrontOrb_vec, FrontDors_vec, Temporal_vec, Parietal_vec, Occipital_vec, Cerebellum_vec)
 		names(ROILobes_list) <- list("BasGang", "Limbic", "FrontOrb", "FrontDors", "Temporal", "Parietal", "Occipital", "Cerebellum")
-		return(ROILobes_list) 
+		return(ROILobes_list)
 	} else {
 		Limbic_vec <- c(grep("Limbic", ROIlist, value=TRUE))
 		Insular_vec <- c(grep("Insular", ROIlist, value=TRUE))
@@ -523,7 +526,7 @@ createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE,
 	# put in lobes
 	if (length(ROI_ListofLists) != 0) {
 		for (i in 1:num_rows) {
-			roiName = summaryDF[i,1] #name of an roi 
+			roiName = summaryDF[i,1] #name of an roi
 			for (j in 1:length(ROI_ListofLists)) { #retrieve lobe for roiName
 				if (roiName %in% ROI_ListofLists[[j]]) {
 					lobe = names(ROI_ListofLists[j])
@@ -550,7 +553,7 @@ createSummaryDF <- function(dataframe, factorsList, ROI_ListofLists, stats=TRUE,
 				summaryDF[ROI_rownums[[k]], "ROI_mean"] <- summary_stats[k, namesROI_vec[[i]]]
 				summaryDF[ROI_rownums[[k]], "ROI_se"] <- summary_stats[k, "se"]
 			}
-		}	
+		}
 		if (simpleNames == TRUE) {
 			ROIcolumn_vec <- gsub(pattern1, replacement, ROIcolumn_vec)
 			ROIcolumn_vec <- gsub(pattern2, replacement, ROIcolumn_vec)
@@ -642,7 +645,7 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 	}
 	# create the plot
 	if (factor !=  "") {
-		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor, color=factor)) + 
+		plotToReturn <- ggplot(dataframe, aes_string(y="ROI_mean", x="ROI_name", group=factor, color=factor)) +
 			geom_line(aes_string(linetype=factor, color=factor), size=3) +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
 			ylab(ylabel) +
@@ -655,18 +658,18 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
 				plotToReturn = plotToReturn + geom_errorbar(aes(ymin=ROI_mean-2*ROI_se, ymax=ROI_mean+2*ROI_se), width=.2, position=position_dodge(width = 0.2)) + ####
-				xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") +
 				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=12), axis.title.x = element_text(face="bold", size=25),
 			axis.title.y = element_text(face="bold", size=40),
 			plot.title = element_text(face="bold", size=40), strip.text.x = element_text(size=12))
 			} else {
-				plotToReturn = plotToReturn + geom_errorbar(aes(ymin=ROI_mean-2*ROI_se, ymax=ROI_mean+2*ROI_se), width=.5, position=position_dodge(width = 0.2), size=2) + 
+				plotToReturn = plotToReturn + geom_errorbar(aes(ymin=ROI_mean-2*ROI_se, ymax=ROI_mean+2*ROI_se), width=.5, position=position_dodge(width = 0.2), size=2) +
 				xlab("Brain Regions") + theme(text=element_text(size=25), axis.text.x = element_text(angle = 45, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=18), axis.title.x = element_text(face="bold", size=25),
 			axis.title.y = element_text(face="bold", size=25),
 			plot.title = element_text(face="bold", size=25), strip.text.x = element_text(size=12))
 			}
 	} else {
-		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) + 
+		plotToReturn <- ggplot(dataframe, aes(y=Subj_ZScore, x=ROI_name, group=Lobe)) +
 			geom_line() +
 			scale_y_continuous(limits=c(lower_order, upper_order), breaks=round(seq(lower_order,upper_order,increment), digits=2)) +
 			ylab(ylabel) +
@@ -675,7 +678,7 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 			theme(legend.position="top") +
 			ggtitle(plotTitle)
 			if (rois == TRUE) {
-				plotToReturn = plotToReturn + xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") + 
+				plotToReturn = plotToReturn + xlab("ROI") + facet_grid(. ~ Lobe, scales="free", space="free_x") +
 				theme(text=element_text(size=20), axis.text.x = element_text(angle = 60, hjust = 1, face="bold"), axis.text.y = element_text(face="bold", size=24), axis.title.x = element_text(face="bold", size=28),
 			axis.title.y = element_text(face="bold", size=40),
 			plot.title = element_text(face="bold", size=40), strip.text.x = element_text(size=15))
@@ -691,7 +694,7 @@ createGGPlotImage <- function(dataframe, factor = "", plotTitle, lower_order=-1,
 
 ## Declare a function to create a summaryDF for subject against a normative group
 # "subjectID" should be the string that represents the subject you want to compare to the rest of the sample
-# "timePoint" should be 
+# "timePoint" should be
 # "columnSubjIDs" should be the column name with the subject IDs in it
 # "columnTimePoint"
 # "dataframe" should only contain column that specify the subject and the DVs
@@ -840,7 +843,7 @@ scanningSite_NASAAntartica <- function(dataframe, wintercol="winterover", subjec
 		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t0")) {
 			dataframe[row, "scanner"] <- "CGN"
 		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t12")) {
-			dataframe[row, "scanner"] <- "CGN"		
+			dataframe[row, "scanner"] <- "CGN"
 		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_004") && (dataframe[row, Timecol] == "t18")) {
 			dataframe[row, "scanner"] <- "CGN"
 		} else if ((dataframe[row, wintercol] == "wo_2015") && (dataframe[row, subject_1col] == "DLR_005") && (dataframe[row, Timecol] == "t0")) {
@@ -1119,7 +1122,7 @@ scanningSite_NASAAntartica <- function(dataframe, wintercol="winterover", subjec
 			dataframe[row, "scanner"] <- "CHR"
 		} else if ((dataframe[row, wintercol] == "phantoms") && (dataframe[row, subject_1col] == "PK") && (dataframe[row, Timecol] == "t4")) {
 			dataframe[row, "scanner"] <- "CGN"
-		} 
+		}
 	}
 	dataframe$scanner <- as.factor(dataframe$scanner)
 	return(dataframe)
@@ -1156,7 +1159,3 @@ lobesToWholeBrain_WeightByVol <- function(vol_dataframe, other_dataframe, lobe_s
 	colnames(other_dataframe)[colnames(other_dataframe)=="newcol"] <- newname
 	return(other_dataframe)
 }
-
-
-
-
